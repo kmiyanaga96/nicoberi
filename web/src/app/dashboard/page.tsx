@@ -1,7 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { logout, markAsArrived, markAsDeparted } from './actions'
-import { Clock, CheckCircle2, User, AlertCircle, CalendarDays } from 'lucide-react'
+import { Clock, CheckCircle2, User, AlertCircle, CalendarDays, Settings } from 'lucide-react'
 
 // 時刻フォーマット用のヘルパー関数
 function formatTime(isoString: string | null) {
@@ -18,6 +19,20 @@ export default async function DashboardPage() {
   if (!user) {
     redirect('/')
   }
+
+  // スタッフプロフィールの取得（is_activeとroleの確認）
+  const { data: staffProfile } = await supabase
+    .from('staff_profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single()
+
+  // アカウントが凍結されている場合は強制的にリダイレクト
+  if (staffProfile && staffProfile.is_active === false) {
+    redirect('/?error=inactive')
+  }
+
+  const isAdmin = staffProfile?.role === 'admin'
 
   // 今日の日付文字列（YYYY-MM-DD）を取得
   const todayStr = new Date().toISOString().split('T')[0]
@@ -62,6 +77,12 @@ export default async function DashboardPage() {
           </div>
           
           <div className="flex items-center gap-4 bg-white/50 dark:bg-black/50 px-4 py-2 rounded-2xl border border-white/20 shadow-sm backdrop-blur-sm">
+            {isAdmin && (
+              <Link href="/admin" className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-bold transition-colors mr-2">
+                <Settings className="w-4 h-4" />
+                管理者パネル
+              </Link>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground mr-2">
               <User className="w-4 h-4" />
               {/* 長いメールアドレスは省略表示 */}

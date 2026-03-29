@@ -37,6 +37,7 @@ export default function Home() {
               name="email"
               type="text" 
               required
+              autoComplete="off"
               className="w-full px-4 py-3 rounded-xl border border-border bg-white/50 dark:bg-black/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
               placeholder="id@example.com"
               disabled={isPending}
@@ -50,6 +51,7 @@ export default function Home() {
               name="password"
               type="password" 
               required
+              autoComplete="new-password"
               className="w-full px-4 py-3 rounded-xl border border-border bg-white/50 dark:bg-black/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
               placeholder="••••••••"
               disabled={isPending}

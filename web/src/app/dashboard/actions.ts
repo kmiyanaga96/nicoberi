@@ -14,7 +14,7 @@ export async function markAsArrived(scheduleId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Not authenticated' }
+  if (!user) return
 
   // 到着時間の打刻（日時更新）とステータスを'present'にする
   const { error } = await supabase
@@ -28,18 +28,17 @@ export async function markAsArrived(scheduleId: string) {
 
   if (error) {
     console.error('Error clocking in:', error)
-    return { error: '到着の打刻に失敗しました' }
+    return
   }
 
   revalidatePath('/dashboard')
-  return { success: true }
 }
 
 export async function markAsDeparted(scheduleId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Not authenticated' }
+  if (!user) return
 
   // 退出時間の打刻（日時更新）
   const { error } = await supabase
@@ -52,9 +51,8 @@ export async function markAsDeparted(scheduleId: string) {
 
   if (error) {
     console.error('Error clocking out:', error)
-    return { error: '退出の打刻に失敗しました' }
+    return
   }
 
   revalidatePath('/dashboard')
-  return { success: true }
 }
