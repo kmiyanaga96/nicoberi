@@ -36,7 +36,7 @@ export default async function DashboardPage() {
 
   // 今日の日付文字列（YYYY-MM-DD）を取得
   const todayStr = new Date().toISOString().split('T')[0]
-  
+
   // Supabaseから本日のスケジュールと児童詳細情報をJOINして取得
   const { data: schedules, error } = await supabase
     .from('daily_schedules')
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-background text-foreground p-4 md:p-8">
       {/* Background Decorative Blob */}
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-primary/10 rounded-full mix-blend-multiply filter blur-3xl animate-pulse-slow pointer-events-none"></div>
-      
+
       <div className="max-w-4xl mx-auto relative z-10 animate-slide-up">
         {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
               {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })} の来所予定
             </p>
           </div>
-          
+
           <div className="flex items-center gap-4 bg-white/50 dark:bg-black/50 px-4 py-2 rounded-2xl border border-white/20 shadow-sm backdrop-blur-sm">
             {isAdmin && (
               <Link href="/admin" className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-bold transition-colors mr-2">
@@ -117,14 +117,14 @@ export default async function DashboardPage() {
               const isArrived = !!schedule.clock_in; // 到着打刻済みかどうか
               const isDeparted = !!schedule.clock_out; // 退出打刻済みかどうか
               const isCancelled = schedule.status === 'cancelled';
-              
+
               return (
-                <div 
-                  key={schedule.id} 
+                <div
+                  key={schedule.id}
                   className={`glass p-5 md:p-6 rounded-3xl border border-white/20 shadow-lg transition-all duration-300 hover:shadow-xl ${isDeparted || isCancelled ? 'opacity-70 bg-secondary/10' : ''}`}
                 >
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0">
-                    
+
                     {/* Child Info */}
                     <div className="flex items-start gap-4">
                       {/* Avatar Placeholder */}
@@ -140,7 +140,7 @@ export default async function DashboardPage() {
                             </span>
                           )}
                         </h2>
-                        {/* アレルギー・配慮事項の表示 */}
+                        {/* 配慮事項の表示 */}
                         {child.medical_notes && child.medical_notes !== '特になし' && (
                           <p className="text-sm text-orange-600 dark:text-orange-400 mt-1.5 flex items-start flex-wrap max-w-md bg-orange-100/50 dark:bg-orange-950/30 px-2 py-1 rounded-lg border border-orange-200/50 dark:border-orange-900/50">
                             <AlertCircle className="w-4 h-4 mr-1.5 mt-0.5 flex-shrink-0" />
@@ -153,11 +153,11 @@ export default async function DashboardPage() {
                     {/* Action Controls (打刻ボタン) */}
                     {!isCancelled && (
                       <div className="flex flex-row items-center gap-2 md:gap-4 w-full md:w-auto bg-black/5 dark:bg-white/5 p-2 rounded-2xl">
-                        
-                        {/* 登園（到着）エリア */}
+
+                        {/* 到着 */}
                         <div className="flex-1 md:flex-initial flex items-center justify-between md:justify-start gap-4 px-3 py-1 border-r border-border/50">
                           <div className="flex flex-col">
-                            <span className="text-[11px] text-muted-foreground font-semibold mb-0.5 tracking-wider uppercase">到達</span>
+                            <span className="text-[11px] text-muted-foreground font-semibold mb-0.5 tracking-wider uppercase">到着</span>
                             <span className="font-mono text-xl md:text-2xl font-bold tracking-tight">{formatTime(schedule.clock_in)}</span>
                           </div>
                           {!isArrived && (
@@ -170,7 +170,7 @@ export default async function DashboardPage() {
                           {isArrived && <CheckCircle2 className="w-7 h-7 text-green-500 filter drop-shadow-sm" />}
                         </div>
 
-                        {/* 退園（退出）エリア */}
+                        {/* 退出 */}
                         <div className="flex-1 md:flex-initial flex items-center justify-between md:justify-start gap-4 px-3 py-1">
                           <div className="flex flex-col">
                             <span className="text-[11px] text-muted-foreground font-semibold mb-0.5 tracking-wider uppercase">退出</span>
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
                           )}
                           {isDeparted && <CheckCircle2 className="w-7 h-7 text-green-500 filter drop-shadow-sm" />}
                         </div>
-                        
+
                       </div>
                     )}
                   </div>

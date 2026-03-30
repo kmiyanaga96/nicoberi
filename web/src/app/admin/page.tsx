@@ -56,7 +56,7 @@ export default async function AdminDashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-8">
       {/* Decorative */}
       <div className="fixed top-20 right-1/4 w-[400px] h-[400px] bg-red-500/10 rounded-full mix-blend-screen filter blur-[100px] animate-pulse-slow pointer-events-none"></div>
-      
+
       <div className="max-w-6xl mx-auto relative z-10">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -66,7 +66,7 @@ export default async function AdminDashboardPage() {
                 管理者パネル
               </h1>
             </div>
-            <p className="text-slate-400 text-sm">ユーザーの権限管理と打刻データの修正を行います。</p>
+            <p className="text-slate-400 text-sm">スタッフ管理と打刻修正を行います。</p>
           </div>
           <Link href="/dashboard" className="flex items-center gap-2 px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors border border-white/10 text-sm font-medium">
             <ArrowLeft className="w-4 h-4" />
@@ -75,12 +75,12 @@ export default async function AdminDashboardPage() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
+
           {/* 左カラム: スタッフ管理 */}
           <div className="space-y-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3">
               <Users className="w-5 h-5 text-indigo-400" />
-              スタッフアカウント管理
+              スタッフ管理
             </h2>
             <div className="space-y-3">
               {typedStaffList.map((staff) => (
@@ -97,7 +97,7 @@ export default async function AdminDashboardPage() {
                         {staff.is_active ? (
                           <span className="text-green-400">● アクティブ</span>
                         ) : (
-                          <span className="text-red-400"><AlertTriangle className="w-3 h-3 inline mr-1"/>凍結済み</span>
+                          <span className="text-red-400"><AlertTriangle className="w-3 h-3 inline mr-1" />凍結済み</span>
                         )}
                       </p>
                     </div>
@@ -119,7 +119,7 @@ export default async function AdminDashboardPage() {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3">
               <CalendarClock className="w-5 h-5 text-indigo-400" />
-              本日の打刻データ修正
+              打刻修正
             </h2>
             <div className="space-y-4">
               {typedSchedules.length === 0 ? (
@@ -128,7 +128,7 @@ export default async function AdminDashboardPage() {
                 typedSchedules.map((schedule) => (
                   <div key={schedule.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 relative overflow-hidden">
                     <h3 className="font-bold text-lg mb-4">{schedule.children?.last_name} {schedule.children?.first_name}</h3>
-                    
+
                     <div className="flex flex-col gap-4">
                       {/* 到着時刻の編集フォーム */}
                       <form action={updateScheduleTime} className="flex items-center justify-between gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
@@ -136,10 +136,10 @@ export default async function AdminDashboardPage() {
                         <input type="hidden" name="fieldName" value="clock_in" />
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-semibold text-slate-400 uppercase w-10">到着</span>
-                          <input 
-                            type="time" 
-                            name="timeValue" 
-                            defaultValue={extractTime(schedule.clock_in)} 
+                          <input
+                            type="time"
+                            name="timeValue"
+                            defaultValue={extractTime(schedule.clock_in)}
                             className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                           />
                         </div>
@@ -154,10 +154,10 @@ export default async function AdminDashboardPage() {
                         <input type="hidden" name="fieldName" value="clock_out" />
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-semibold text-slate-400 uppercase w-10">退出</span>
-                          <input 
-                            type="time" 
-                            name="timeValue" 
-                            defaultValue={extractTime(schedule.clock_out)} 
+                          <input
+                            type="time"
+                            name="timeValue"
+                            defaultValue={extractTime(schedule.clock_out)}
                             className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                           />
                         </div>
