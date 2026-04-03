@@ -85,39 +85,6 @@ export async function toggleStaffActive(staffId: string, currentStatus: boolean)
   revalidatePath('/admin')
 }
 
-export async function updateScheduleTime(formData: FormData) {
-  const supabase = await createClient()
-  const scheduleId = formData.get('scheduleId') as string
-  const fieldName = formData.get('fieldName') as 'clock_in' | 'clock_out'
-  const timeValue = formData.get('timeValue') as string // HH:mm form
-
-  if (!scheduleId || !fieldName) return
-
-  // ISO日付を作成（既存の日付に時間を組み合わせる等）
-  // 実際はscheduleのdateを引っ張ってきて合成する必要がある
-  const { data: schedule } = await supabase.from('daily_schedules').select('date').eq('id', scheduleId).single()
-  if (!schedule) return
-
-  let isoDateTime = null
-  if (timeValue) {
-    const [hh, mm] = timeValue.split(':')
-    const tDate = new Date(`${schedule.date}T00:00:00`)
-    tDate.setHours(parseInt(hh, 10))
-    tDate.setMinutes(parseInt(mm, 10))
-    isoDateTime = tDate.toISOString()
-  }
-
-  await supabase
-    .from('daily_schedules')
-    .update({ 
-      [fieldName]: isoDateTime,
-      status: 'present'
-    })
-    .eq('id', scheduleId)
-
-  revalidatePath('/admin')
-}
-
 // 児童情報の追加・更新
 export async function upsertChild(formData: FormData) {
   const supabase = await createClient()
@@ -158,25 +125,64 @@ export async function upsertChild(formData: FormData) {
   revalidatePath('/admin')
 }
 
-// 管理者用: 送迎フラグのトグル
-export async function updateScheduleTransport(formData: FormData) {
+// 児童の削除（論理削除ではなく物理削除）
+export async function deleteChild(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const childId = formData.get('childId') as string
+  if (!childId) return
+
+  // 関連するスケジュールも削除
+  await supabase.from('daily_schedules').delete().eq('child_id', childId)
+  await supabase.from('children').delete().eq('id', childId)
+
+  revalidatePath('/admin')
+}
+
+// 来所予定の追加
+export async function addSchedule(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const childId = formData.get('childId') as string
+  const date = formData.get('date') as string
+
+  if (!childId || !date) return
+
+  // 同じ日に同じ児童の予定が既にあれば追加しない
+  const { data: existing } = await supabase
+    .from('daily_schedules')
+    .select('id')
+    .eq('child_id', childId)
+    .eq('date', date)
+    .maybeSingle()
+
+  if (existing) return // 重複防止
+
+  await supabase.from('daily_schedules').insert({
+    child_id: childId,
+    date,
+    status: 'scheduled',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/dashboard')
+}
+
+// 来所予定の削除
+export async function removeSchedule(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
   const scheduleId = formData.get('scheduleId') as string
-  const field = formData.get('field') as 'pickup' | 'dropoff'
-  const currentValue = formData.get('currentValue') === 'true'
+  if (!scheduleId) return
 
-  if (!scheduleId || !field) return
+  await supabase.from('daily_schedules').delete().eq('id', scheduleId)
 
-  const { error } = await supabase
-    .from('daily_schedules')
-    .update({ [field]: !currentValue })
-    .eq('id', scheduleId)
-
-  if (error) {
-    console.error(`Error toggling ${field}:`, error)
-  }
   revalidatePath('/admin')
+  revalidatePath('/dashboard')
 }

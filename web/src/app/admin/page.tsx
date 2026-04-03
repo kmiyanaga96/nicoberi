@@ -1,15 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Users, CalendarClock, ArrowLeft, ShieldCheck, Power, AlertTriangle, UserPlus, KeyRound, CarTaxiFront } from 'lucide-react'
-import { toggleStaffActive, updateScheduleTime, createNewStaffAccount, resetStaffPassword, upsertChild, updateScheduleTransport } from './actions'
+import { Users, ArrowLeft, ShieldCheck, Power, AlertTriangle, UserPlus, KeyRound, CalendarClock, Trash2, Plus, X } from 'lucide-react'
+import { toggleStaffActive, createNewStaffAccount, resetStaffPassword, upsertChild, deleteChild, addSchedule, removeSchedule } from './actions'
 import { AutoCloseDetails } from '@/app/components/AutoCloseDetails'
-
-function extractTime(isoString: string | null) {
-  if (!isoString) return ''
-  const date = new Date(isoString)
-  return new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' }).format(date)
-}
+import { ConfirmButton } from '@/app/components/ConfirmButton'
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -18,8 +13,7 @@ export default async function AdminDashboardPage({
 }) {
   const resolvedParams = await searchParams
   const activeTab = resolvedParams?.tab === 'staff' ? 'staff' : 'office'
-  const targetDateStr = typeof resolvedParams?.date === 'string' ? resolvedParams.date : new Date().toISOString().split('T')[0]
-  const targetMonthStr = targetDateStr.substring(0, 7) // 'YYYY-MM'
+  const targetMonthStr = new Date().toISOString().substring(0, 7) // 'YYYY-MM'
 
   const supabase = await createClient()
 
@@ -51,29 +45,41 @@ export default async function AdminDashboardPage({
     .select('*')
     .order('sei', { ascending: true })
 
-  // 選択された日付のスケジュール一覧（デフォルトは本日）
-  const { data: schedules } = await supabase
+  // 今日から1ヶ月先までの日付リスト（予定登録用）
+  const dateSuggestions: { value: string; label: string }[] = []
+  const todayDate = new Date()
+  for (let i = 0; i <= 30; i++) {
+    const d = new Date(todayDate)
+    d.setDate(d.getDate() + i)
+    const val = d.toISOString().split('T')[0]
+    const dow = ['日','月','火','水','木','金','土'][d.getDay()]
+    const label = `${d.getMonth()+1}/${d.getDate()} (${dow})`
+    dateSuggestions.push({ value: val, label })
+  }
+
+  // 対象期間の既存スケジュール（予定管理用: 今日〜1ヶ月後）
+  const scheduleRangeStart = todayDate.toISOString().split('T')[0]
+  const endD = new Date(todayDate); endD.setDate(endD.getDate() + 30)
+  const scheduleRangeEnd = endD.toISOString().split('T')[0]
+
+  const { data: existingSchedules } = await supabase
     .from('daily_schedules')
     .select(`
-      id,
-      status,
-      date,
-      clock_in,
-      clock_out,
-      pickup,
-      dropoff,
+      id, date, status,
       children ( id, first_name, last_name, sei )
     `)
-    .eq('date', targetDateStr)
-    .order('created_at', { ascending: true })
+    .gte('date', scheduleRangeStart)
+    .lte('date', scheduleRangeEnd)
+    .order('date', { ascending: true })
+
+  // 日付ごとにグルーピング
+  const schedulesByDate: Record<string, any[]> = {}
+  for (const s of (existingSchedules as any[]) || []) {
+    if (!schedulesByDate[s.date]) schedulesByDate[s.date] = []
+    schedulesByDate[s.date].push(s)
+  }
 
   const typedStaffList = (staffList as any[]) || []
-  // フリガナ（sei）であいうえお順にソート
-  const typedSchedules = ((schedules as any[]) || []).sort((a, b) => {
-    const seiA = a.children?.sei || a.children?.last_name || ''
-    const seiB = b.children?.sei || b.children?.last_name || ''
-    return seiA.localeCompare(seiB, 'ja')
-  })
   const typedChildren = (childrenList as any[]) || []
 
   return (
@@ -90,7 +96,7 @@ export default async function AdminDashboardPage({
                 管理者パネル
               </h1>
             </div>
-            <p className="text-slate-400 text-sm">スタッフ管理と打刻修正を行います。</p>
+            <p className="text-slate-400 text-sm">スタッフ管理とデータ管理を行います。</p>
           </div>
           <Link href="/dashboard" className="flex items-center gap-2 px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors border border-white/10 text-sm font-medium">
             <ArrowLeft className="w-4 h-4" />
@@ -226,244 +232,197 @@ export default async function AdminDashboardPage({
             </div>
           )}
 
-          {/* 事務処理タブ */}
           {activeTab === 'office' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
 
-              {/* 左カラム: 日付ごとのスケジュール・打刻管理 */}
-              <div className="space-y-8">
-
-                <div className="space-y-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-3">
-                    <h2 className="text-xl font-semibold flex items-center gap-2">
-                      <CalendarClock className="w-5 h-5 text-teal-400" />
-                      打刻・スケジュール管理
-                    </h2>
-                    {/* 日付選択 */}
-                    <form className="flex items-center gap-2" method="GET" action="/admin">
-                      <input type="hidden" name="tab" value="office" />
-                      <input
-                        type="date"
-                        name="date"
-                        defaultValue={targetDateStr}
-                        className="bg-slate-900 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                      <button type="submit" className="text-sm bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded-lg transition-colors">
-                        表示
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* ここから下に既存の打刻修正カードを展開 */}
-                  <div className="space-y-4">
-                    {typedSchedules.length === 0 ? (
-                      <p className="text-slate-500 text-sm">{targetDateStr} のスケジュールはありません。</p>
-                    ) : (
-                      typedSchedules.map((schedule) => (
-                        <div key={schedule.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 relative overflow-hidden">
-                          <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg">{schedule.children?.last_name} {schedule.children?.first_name}</h3>
-                            <span className={`text-xs px-2 py-1 rounded font-bold ${schedule.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-teal-500/20 text-teal-300'}`}>
-                              {schedule.status === 'cancelled' ? 'キャンセル済' : schedule.status === 'present' ? '預かり' : schedule.status}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col gap-4">
-                            {/* 到着時刻の編集フォーム */}
-                            <form action={updateScheduleTime} className="flex items-center justify-between gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
-                              <input type="hidden" name="scheduleId" value={schedule.id} />
-                              <input type="hidden" name="fieldName" value="clock_in" />
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-slate-400 uppercase w-10">到着</span>
-                                <input
-                                  type="time"
-                                  name="timeValue"
-                                  defaultValue={extractTime(schedule.clock_in)}
-                                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
-                                />
-                              </div>
-                              <button type="submit" className="text-xs font-medium bg-teal-600 hover:bg-teal-500 transition-colors px-3 py-1.5 rounded-lg flex items-center gap-1">
-                                更新
-                              </button>
-                            </form>
-
-                            {/* 退出時刻の編集フォーム */}
-                            <form action={updateScheduleTime} className="flex items-center justify-between gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
-                              <input type="hidden" name="scheduleId" value={schedule.id} />
-                              <input type="hidden" name="fieldName" value="clock_out" />
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-slate-400 uppercase w-10">退出</span>
-                                <input
-                                  type="time"
-                                  name="timeValue"
-                                  defaultValue={extractTime(schedule.clock_out)}
-                                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
-                                />
-                              </div>
-                              <button type="submit" className="text-xs font-medium bg-teal-600 hover:bg-teal-500 transition-colors px-3 py-1.5 rounded-lg">
-                                更新
-                              </button>
-                            </form>
-
-                            {/* 送迎修正フォーム */}
-                            <div className="flex items-center justify-between gap-4 bg-black/20 p-3 rounded-xl border border-white/5">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-slate-400 uppercase w-10">送迎</span>
-                                <div className="flex gap-2">
-                                  <form action={updateScheduleTransport}>
-                                    <input type="hidden" name="scheduleId" value={schedule.id} />
-                                    <input type="hidden" name="field" value="pickup" />
-                                    <input type="hidden" name="currentValue" value={schedule.pickup ? 'true' : 'false'} />
-                                    <button type="submit" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                                      schedule.pickup
-                                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-                                        : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700'
-                                    }`}>
-                                      <CarTaxiFront className={`w-3.5 h-3.5 ${schedule.pickup ? 'text-cyan-400' : 'opacity-50'}`} />
-                                      迎え
-                                    </button>
-                                  </form>
-                                  <form action={updateScheduleTransport}>
-                                    <input type="hidden" name="scheduleId" value={schedule.id} />
-                                    <input type="hidden" name="field" value="dropoff" />
-                                    <input type="hidden" name="currentValue" value={schedule.dropoff ? 'true' : 'false'} />
-                                    <button type="submit" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                                      schedule.dropoff
-                                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                                        : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700'
-                                    }`}>
-                                      <CarTaxiFront className={`w-3.5 h-3.5 ${schedule.dropoff ? 'text-indigo-400' : 'opacity-50'}`} />
-                                      送り
-                                    </button>
-                                  </form>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 右カラム: データ管理・出力系 */}
-              <div className="space-y-8">
-                {/* 新規予定追加プレースホルダー */}
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-slate-300">
-                    来所予定の登録・キャンセル
-                  </h2>
-                  <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-center border-dashed">
-                    <p className="text-slate-400 text-sm">（※開発中）指定した日付の児童予定を追加またはキャンセルする機能がここに追加されます。</p>
-                  </div>
-                </div>
-
-                {/* 児童名簿管理プレースホルダーの置き換え */}
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-slate-300">
-                    児童名簿・情報編集
-                  </h2>
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 max-h-[500px] overflow-y-auto">
-                    {/* 新規登録フォーム用 */}
-                    <details className="mb-4 group bg-teal-900/40 border border-teal-500/30 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-                      <summary className="flex items-center justify-between cursor-pointer p-4 font-bold text-teal-300">
-                        + 新規児童の追加
-                      </summary>
-                      <div className="p-4 pt-0 border-t border-teal-500/20 bg-black/20">
-                        <form action={upsertChild} className="flex flex-col gap-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <input type="text" name="last_name" required placeholder="姓" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                            <input type="text" name="first_name" required placeholder="名" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                            <input type="text" name="sei" placeholder="セイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                            <input type="text" name="mei" placeholder="メイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                          </div>
-                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                            <select name="gender" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg text-slate-300">
-                              <option value="男">男</option>
-                              <option value="女">女</option>
-                            </select>
-                            <input type="text" name="recipient_number" placeholder="受給者証番号 (例:3980)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                            <input type="number" name="disability_level" placeholder="支援区分 (例:3)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                          </div>
-                          <textarea name="notes" placeholder="スタッフ共有事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
-                          <textarea name="medical_notes" placeholder="非公開配慮事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
-                          <button type="submit" className="bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold py-2 rounded-lg transition-colors mt-2">
-                            登録
-                          </button>
-                        </form>
-                      </div>
-                    </details>
-
-                    {/* 既存児童一括表示 */}
-                    <div className="space-y-2">
-                      {typedChildren.map((child) => (
-                        <AutoCloseDetails
-                          key={child.id}
-                          className="group bg-black/20 border border-white/5 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden"
-                          summaryClassName="flex items-center justify-between cursor-pointer p-3 font-medium text-sm text-slate-200 hover:bg-white/5 transition-colors"
-                          summaryContent={<>
-                            {child.last_name} {child.first_name}
-                            <span className="text-[10px] text-slate-500 bg-black/40 px-2 py-0.5 rounded">編集 v</span>
-                          </>}
-                        >
-                          <div className="p-4 pt-2 border-t border-white/5">
-                            <form action={upsertChild} className="flex flex-col gap-3">
-                              <input type="hidden" name="id" value={child.id} />
-                              <div className="grid grid-cols-2 gap-3">
-                                <input type="text" name="last_name" defaultValue={child.last_name} required placeholder="姓" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                                <input type="text" name="first_name" defaultValue={child.first_name} required placeholder="名" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                                <input type="text" name="sei" defaultValue={child.sei || ''} placeholder="セイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                                <input type="text" name="mei" defaultValue={child.mei || ''} placeholder="メイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                              </div>
-                              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                                <select name="gender" defaultValue={child.gender || '男'} className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg text-slate-300">
-                                  <option value="男">男</option>
-                                  <option value="女">女</option>
-                                </select>
-                                <input type="text" name="recipient_number" defaultValue={child.recipient_number || ''} placeholder="受給者証番号" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                                <input type="number" name="disability_level" defaultValue={child.disability_level || ''} placeholder="支援区分" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
-                              </div>
-                              <textarea name="notes" defaultValue={child.notes || ''} placeholder="スタッフ共有事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
-                              <textarea name="medical_notes" defaultValue={child.medical_notes || ''} placeholder="非公開配慮事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
-                              <button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold py-1.5 rounded-lg transition-colors mt-2">
-                                更新
-                              </button>
-                            </form>
-                          </div>
-                        </AutoCloseDetails>
-                      ))}
+              {/* 来所予定の登録・キャンセル */}
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-slate-300">
+                  <CalendarClock className="w-5 h-5 text-teal-400" />
+                  来所予定の登録・キャンセル
+                </h2>
+                {/* 予定追加フォーム */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <form action={addSchedule} className="flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wider">児童</label>
+                      <select name="childId" required className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                        <option value="">選択</option>
+                        {typedChildren.map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.last_name} {c.first_name}</option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wider">日付</label>
+                      <select name="date" required className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                        {dateSuggestions.map(ds => (
+                          <option key={ds.value} value={ds.value}>{ds.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button type="submit" className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm px-4 py-2 rounded-lg transition-colors">
+                      <Plus className="w-4 h-4" />
+                      追加
+                    </button>
+                  </form>
                 </div>
 
-                {/* CSV出力 -> Excel出力への置き換え */}
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-emerald-400">
-                    月次実績記録表・スケジュール表の出力
-                  </h2>
-                  <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
-                    <p className="text-emerald-400/80 text-sm mb-4">
-                      浦安市提出の所定フォーマットを自動生成し、Excelファイルとしてダウンロードします。
-                    </p>
-                    <form method="GET" action="/api/export" className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="month"
-                        name="month"
-                        defaultValue={targetMonthStr}
-                        className="bg-slate-900 border border-slate-700 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <button
-                        type="submit"
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2 rounded-xl transition-colors text-sm shadow-md"
-                      >
-                        全児童の記録を出力 (.xlsx)
-                      </button>
-                    </form>
-                  </div>
+                {/* 登録済み予定の一覧（日別アコーディオン） */}
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {dateSuggestions.map(ds => {
+                    const dayRecords = schedulesByDate[ds.value] || []
+                    if (dayRecords.length === 0) return null
+                    const d = new Date(ds.value + 'T00:00:00')
+                    const isSun = d.getDay() === 0
+                    const isSat = d.getDay() === 6
+                    return (
+                      <details key={ds.value} className="group bg-white/5 border border-white/10 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                        <summary className={`flex items-center justify-between cursor-pointer px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors ${
+                          isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-slate-200'
+                        }`}>
+                          <span>{ds.label}</span>
+                          <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded font-bold">{dayRecords.length}名</span>
+                        </summary>
+                        <div className="border-t border-white/5 divide-y divide-white/5">
+                          {dayRecords.sort((a: any, b: any) => {
+                            const sA = a.children?.sei || a.children?.last_name || ''
+                            const sB = b.children?.sei || b.children?.last_name || ''
+                            return sA.localeCompare(sB, 'ja')
+                          }).map((s: any) => (
+                            <div key={s.id} className="flex items-center justify-between px-4 py-2">
+                              <span className="text-sm">{s.children?.last_name} {s.children?.first_name}</span>
+                              <form action={removeSchedule}>
+                                <input type="hidden" name="scheduleId" value={s.id} />
+                                <button type="submit" className="text-red-400 hover:text-red-300 p-1 rounded-lg hover:bg-red-500/10 transition-colors" title="予定を削除">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </form>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )
+                  })}
                 </div>
-
               </div>
+
+              {/* 児童名簿管理 */}
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-slate-300">
+                  児童名簿・情報編集
+                </h2>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 max-h-[500px] overflow-y-auto">
+                  {/* 新規登録フォーム用 */}
+                  <details className="mb-4 group bg-teal-900/40 border border-teal-500/30 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="flex items-center justify-between cursor-pointer p-4 font-bold text-teal-300">
+                      + 新規児童の追加
+                    </summary>
+                    <div className="p-4 pt-0 border-t border-teal-500/20 bg-black/20">
+                      <form action={upsertChild} className="flex flex-col gap-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="text" name="last_name" required placeholder="姓" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                          <input type="text" name="first_name" required placeholder="名" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                          <input type="text" name="sei" placeholder="セイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                          <input type="text" name="mei" placeholder="メイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                          <select name="gender" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg text-slate-300">
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                          </select>
+                          <input type="text" name="recipient_number" placeholder="受給者証番号 (例:3980)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                          <input type="number" name="disability_level" placeholder="支援区分 (例:3)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                        </div>
+                        <textarea name="notes" placeholder="スタッフ共有事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
+                        <textarea name="medical_notes" placeholder="非公開配慮事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
+                        <button type="submit" className="bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold py-2 rounded-lg transition-colors mt-2">
+                          登録
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+
+                  {/* 既存児童一括表示 */}
+                  <div className="space-y-2">
+                    {typedChildren.map((child) => (
+                      <AutoCloseDetails
+                        key={child.id}
+                        className="group bg-black/20 border border-white/5 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden"
+                        summaryClassName="flex items-center justify-between cursor-pointer p-3 font-medium text-sm text-slate-200 hover:bg-white/5 transition-colors"
+                        summaryContent={<>
+                          {child.last_name} {child.first_name}
+                          <span className="text-[10px] text-slate-500 bg-black/40 px-2 py-0.5 rounded">編集 v</span>
+                        </>}
+                      >
+                        <div className="p-4 pt-2 border-t border-white/5">
+                          <form action={upsertChild} className="flex flex-col gap-3">
+                            <input type="hidden" name="id" value={child.id} />
+                            <div className="grid grid-cols-2 gap-3">
+                              <input type="text" name="last_name" defaultValue={child.last_name} required placeholder="姓" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                              <input type="text" name="first_name" defaultValue={child.first_name} required placeholder="名" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                              <input type="text" name="sei" defaultValue={child.sei || ''} placeholder="セイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                              <input type="text" name="mei" defaultValue={child.mei || ''} placeholder="メイ (フリガナ)" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                            </div>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                              <select name="gender" defaultValue={child.gender || '男'} className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg text-slate-300">
+                                <option value="男">男</option>
+                                <option value="女">女</option>
+                              </select>
+                              <input type="text" name="recipient_number" defaultValue={child.recipient_number || ''} placeholder="受給者証番号" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                              <input type="number" name="disability_level" defaultValue={child.disability_level || ''} placeholder="支援区分" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg" />
+                            </div>
+                            <textarea name="notes" defaultValue={child.notes || ''} placeholder="スタッフ共有事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
+                            <textarea name="medical_notes" defaultValue={child.medical_notes || ''} placeholder="非公開配慮事項" className="bg-slate-900 border border-slate-700 text-sm px-3 py-2 rounded-lg w-full" rows={2}></textarea>
+                            <div className="flex items-center gap-3 mt-2">
+                              <button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold py-1.5 px-4 rounded-lg transition-colors">
+                                更新
+                              </button>
+                            </div>
+                          </form>
+                          <form action={deleteChild} className="mt-3 pt-3 border-t border-white/5">
+                            <input type="hidden" name="childId" value={child.id} />
+                            <ConfirmButton
+                              message={`${child.last_name} ${child.first_name} を名簿から削除しますか？\nこの操作は取り消せません。`}
+                              className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-xs font-medium hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              この児童を削除
+                            </ConfirmButton>
+                          </form>
+                        </div>
+                      </AutoCloseDetails>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Excel出力 */}
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-3 text-emerald-400">
+                  月次実績記録表・スケジュール表の出力
+                </h2>
+                <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
+                  <p className="text-emerald-400/80 text-sm mb-4">
+                    浦安市提出の所定フォーマットを自動生成し、Excelファイルとしてダウンロードします。
+                  </p>
+                  <form method="GET" action="/api/export" className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="month"
+                      name="month"
+                      defaultValue={targetMonthStr}
+                      className="bg-slate-900 border border-slate-700 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2 rounded-xl transition-colors text-sm shadow-md"
+                    >
+                      出力 (.xlsx)
+                    </button>
+                  </form>
+                </div>
+              </div>
+
             </div>
           )}
 
