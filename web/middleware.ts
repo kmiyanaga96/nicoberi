@@ -1,6 +1,8 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './src/utils/supabase/middleware'
 
+export const runtime = 'nodejs'
+
 export async function middleware(request: NextRequest) {
   // Supabase Authのセッションをすべてのリクエストで最新に保つための処理
   return await updateSession(request)
