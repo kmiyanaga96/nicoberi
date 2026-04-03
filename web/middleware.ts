@@ -1,22 +1,13 @@
-import { type NextRequest } from 'next/server'
-import { updateSession } from './src/utils/supabase/middleware'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export const runtime = 'nodejs'
-
-export async function middleware(request: NextRequest) {
-  // Supabase Authのセッションをすべてのリクエストで最新に保つための処理
-  return await updateSession(request)
+export function middleware(request: NextRequest) {
+  // セッション更新は各ページのサーバーコンポーネントで実施
+  // (supabase.auth.getUser() が自動でトークンをリフレッシュする)
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    /*
-     * 以下のパスを除くすべてのリクエストパスにマッチさせます：
-     * - _next/static (静的ファイル)
-     * - _next/image (画像最適化ファイル)
-     * - favicon.ico (ファビコン)
-     * - 各種静的画像・SVGファイル
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
