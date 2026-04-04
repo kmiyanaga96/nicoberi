@@ -245,7 +245,7 @@ export default async function DashboardPage({
             className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'children' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
             <Users className="w-3.5 h-3.5" />
-            児童
+            児童・住所
           </Link>
         </div>
 
@@ -296,33 +296,33 @@ export default async function DashboardPage({
                           </h2>
                           {/* スタッフ共有事項の表示と編集 */}
                           {(child.notes || child.medical_notes) && (
-                          <div className="mt-2 w-full max-w-md">
-                            <AutoCloseDetails
-                              className="group [&_summary::-webkit-details-marker]:hidden"
-                              summaryClassName="flex items-center gap-1.5 cursor-pointer text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-950/30 px-3 py-1.5 rounded-lg border border-orange-200/50 dark:border-orange-900/50 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
-                              summaryContent={<>
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                <span className="leading-snug truncate max-w-[200px]">{child.notes || child.medical_notes}</span>
-                                <span className="text-[10px] ml-auto uppercase tracking-wider opacity-60">Edit</span>
-                              </>}
-                            >
-                              <div className="mt-2 p-3 bg-white/50 dark:bg-black/20 border border-orange-200 dark:border-orange-900/30 rounded-xl shadow-sm animate-in slide-in-from-top-1">
-                                <form action={updateChildNotes} className="flex flex-col gap-2">
-                                  <input type="hidden" name="childId" value={child.id} />
-                                  <textarea
-                                    name="notes"
-                                    defaultValue={child.notes || child.medical_notes || ''}
-                                    placeholder="スタッフ共有事項"
-                                    className="w-full text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-orange-500 min-h-[60px]"
-                                  />
-                                  <button type="submit" className="self-end flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors">
-                                    <Save className="w-3.5 h-3.5" />
-                                    保存
-                                  </button>
-                                </form>
-                              </div>
-                            </AutoCloseDetails>
-                          </div>
+                            <div className="mt-2 w-full max-w-md">
+                              <AutoCloseDetails
+                                className="group [&_summary::-webkit-details-marker]:hidden"
+                                summaryClassName="flex items-center gap-1.5 cursor-pointer text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-950/30 px-3 py-1.5 rounded-lg border border-orange-200/50 dark:border-orange-900/50 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
+                                summaryContent={<>
+                                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                  <span className="leading-snug truncate max-w-[200px]">{child.notes || child.medical_notes}</span>
+                                  <span className="text-[10px] ml-auto uppercase tracking-wider opacity-60">Edit</span>
+                                </>}
+                              >
+                                <div className="mt-2 p-3 bg-white/50 dark:bg-black/20 border border-orange-200 dark:border-orange-900/30 rounded-xl shadow-sm animate-in slide-in-from-top-1">
+                                  <form action={updateChildNotes} className="flex flex-col gap-2">
+                                    <input type="hidden" name="childId" value={child.id} />
+                                    <textarea
+                                      name="notes"
+                                      defaultValue={child.notes || child.medical_notes || ''}
+                                      placeholder="スタッフ共有事項"
+                                      className="w-full text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-orange-500 min-h-[60px]"
+                                    />
+                                    <button type="submit" className="self-end flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors">
+                                      <Save className="w-3.5 h-3.5" />
+                                      保存
+                                    </button>
+                                  </form>
+                                </div>
+                              </AutoCloseDetails>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -624,7 +624,7 @@ export default async function DashboardPage({
                       </div>
                       <div className="md:col-span-3">
                         <label className="block text-[10px] text-muted-foreground uppercase mb-1">住所</label>
-                        <input type="text" name="address" placeholder="例: 東京都浦安市..." className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                        <input type="text" name="address" placeholder="例: 千葉県浦安市..." className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
                       </div>
                     </div>
                     <div className="flex justify-start">
@@ -633,7 +633,7 @@ export default async function DashboardPage({
                       </button>
                     </div>
                   </form>
-                  
+
                   {/* 登録済み施設一覧 */}
                   <div className="space-y-2 mt-6">
                     <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3 border-b border-border/50 pb-1">登録されている施設</h3>
@@ -654,8 +654,8 @@ export default async function DashboardPage({
                               </div>
                             </div>
                             <span className="text-[10px] text-muted-foreground bg-black/10 dark:bg-white/10 px-2.5 py-1 rounded-lg uppercase tracking-widest font-bold flex items-center gap-1.5">
-                                <Settings className="w-3 h-3" />
-                                詳細・編集
+                              <Settings className="w-3 h-3" />
+                              詳細・編集
                             </span>
                           </>}
                         >
@@ -682,7 +682,7 @@ export default async function DashboardPage({
                                     message={`${f.name} を削除しますか？\n(既に紐づいている児童からは施設情報のみ解除されます)`}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all shadow-md text-[10px] font-bold bg-transparent border border-red-500/30 text-red-500 hover:bg-red-500/20"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5"/>この施設を削除
+                                    <Trash2 className="w-3.5 h-3.5" />この施設を削除
                                   </ConfirmButton>
                                 </form>
                               </div>
@@ -837,7 +837,7 @@ export default async function DashboardPage({
                           </button>
                         </div>
                       </form>
-                      
+
                       <form action={deleteChild} className="mt-4 pt-4 border-t border-border/50 flex justify-end">
                         <input type="hidden" name="childId" value={child.id} />
                         <ConfirmButton
