@@ -110,10 +110,9 @@ export default async function AdminDashboardPage({
                         </div>
                         <div>
                           <label className="block text-xs text-slate-400 mb-1">
-                            スタッフID <span className="opacity-70 text-[10px]">(※変更すると次回ログインIDが変わります)</span>
+                            新しいスタッフID <span className="opacity-70 text-[10px]">(※変更する場合のみ)</span>
                           </label>
-                          {/* name? or email? In original it was named after email suffix */}
-                          <input type="text" name="staff_id" placeholder="新しいID" defaultValue={staff.name?.split('@')[0]} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
+                          <input type="text" name="staff_id" placeholder="新しいID" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
                           <label className="block text-xs text-slate-400 mb-1">新しいパスワード (変更する場合のみ)</label>

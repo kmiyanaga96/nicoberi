@@ -54,8 +54,8 @@ export async function updateStaffAccount(formData: FormData) {
   if (!user) throw new Error('Not authenticated')
 
   const targetUserId = formData.get('user_id') as string
-  const newStaffId = formData.get('staff_id') as string
-  const newName = formData.get('name') as string
+  const newStaffId = (formData.get('staff_id') as string || '').trim()
+  const newName = (formData.get('name') as string || '').trim()
   const newPassword = formData.get('password') as string
   const newRole = formData.get('role') as string
 
