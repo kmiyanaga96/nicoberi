@@ -48,24 +48,75 @@ export async function createNewStaffAccount(formData: FormData) {
   revalidatePath('/admin')
 }
 
-export async function resetStaffPassword(formData: FormData) {
+export async function updateStaffAccount(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
   const targetUserId = formData.get('user_id') as string
-  const newPassword = formData.get('new_password') as string
+  const newStaffId = formData.get('staff_id') as string
+  const newName = formData.get('name') as string
+  const newPassword = formData.get('password') as string
+  const newRole = formData.get('role') as string
 
   const adminClient = createAdminClient()
 
-  // ユーザーのパスワードを強制リセット
-  const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
-    password: newPassword
-  })
+  // メールアドレスとパスワードの更新（変更がある場合のみ）
+  const updateData: any = {}
+  if (newStaffId) updateData.email = `${newStaffId}@nicoberi.com`
+  if (newPassword) updateData.password = newPassword
 
-  if (error) {
-    console.error('Error updating password:', error)
-    throw new Error(error.message)
+  if (Object.keys(updateData).length > 0) {
+    const { error: authError } = await adminClient.auth.admin.updateUserById(targetUserId, updateData)
+    if (authError) {
+      console.error('Error updating auth:', authError)
+      throw new Error(authError.message)
+    }
+  }
+
+  // 名前と権限の更新
+  const profileUpdateData: any = {}
+  if (newName) profileUpdateData.name = newName
+  if (newRole) profileUpdateData.role = newRole
+
+  if (Object.keys(profileUpdateData).length > 0) {
+    const { error: profileError } = await adminClient
+      .from('staff_profiles')
+      .update(profileUpdateData)
+      .eq('id', targetUserId)
+    if (profileError) {
+      console.error('Error updating profile:', profileError)
+      throw new Error(profileError.message)
+    }
+  }
+
+  revalidatePath('/admin')
+}
+
+export async function deleteStaffAccount(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const targetUserId = formData.get('user_id') as string
+  if (!targetUserId) throw new Error('User ID is required')
+  if (targetUserId === user.id) throw new Error('Cannot delete yourself')
+
+  const adminClient = createAdminClient()
+
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(targetUserId)
+  if (deleteError) {
+    console.error('Error deleting user from Auth:', deleteError)
+    throw new Error(deleteError.message)
+  }
+
+  const { error: profileError } = await adminClient
+    .from('staff_profiles')
+    .delete()
+    .eq('id', targetUserId)
+    
+  if (profileError) {
+    console.error('Error deleting profile:', profileError)
   }
 
   revalidatePath('/admin')
@@ -83,106 +134,4 @@ export async function toggleStaffActive(staffId: string, currentStatus: boolean)
 
   if (error) console.error('Error toggling staff status', error)
   revalidatePath('/admin')
-}
-
-// 児童情報の追加・更新
-export async function upsertChild(formData: FormData) {
-  const supabase = await createClient()
-  const id = formData.get('id') as string
-  const first_name = formData.get('first_name') as string
-  const last_name = formData.get('last_name') as string
-  const sei = formData.get('sei') as string
-  const mei = formData.get('mei') as string
-  const gender = formData.get('gender') as string
-  const recipient_number = formData.get('recipient_number') as string
-  const disability_level = parseInt(formData.get('disability_level') as string) || 3
-  const medical_notes = formData.get('medical_notes') as string
-  const notes = formData.get('notes') as string
-
-  if (!first_name || !last_name) return
-
-  const payload = {
-    first_name,
-    last_name,
-    sei,
-    mei,
-    gender,
-    recipient_number,
-    disability_level,
-    medical_notes,
-    notes,
-    active: true
-  }
-
-  if (id) {
-    // 既存の更新
-    await supabase.from('children').update(payload).eq('id', id)
-  } else {
-    // 新規作成
-    await supabase.from('children').insert(payload)
-  }
-  
-  revalidatePath('/admin')
-}
-
-// 児童の削除（論理削除ではなく物理削除）
-export async function deleteChild(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
-
-  const childId = formData.get('childId') as string
-  if (!childId) return
-
-  // 関連するスケジュールも削除
-  await supabase.from('daily_schedules').delete().eq('child_id', childId)
-  await supabase.from('children').delete().eq('id', childId)
-
-  revalidatePath('/admin')
-}
-
-// 来所予定の追加
-export async function addSchedule(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
-
-  const childId = formData.get('childId') as string
-  const date = formData.get('date') as string
-
-  if (!childId || !date) return
-
-  // 同じ日に同じ児童の予定が既にあれば追加しない
-  const { data: existing } = await supabase
-    .from('daily_schedules')
-    .select('id')
-    .eq('child_id', childId)
-    .eq('date', date)
-    .maybeSingle()
-
-  if (existing) return // 重複防止
-
-  await supabase.from('daily_schedules').insert({
-    child_id: childId,
-    date,
-    status: 'scheduled',
-  })
-
-  revalidatePath('/admin')
-  revalidatePath('/dashboard')
-}
-
-// 来所予定の削除
-export async function removeSchedule(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
-
-  const scheduleId = formData.get('scheduleId') as string
-  if (!scheduleId) return
-
-  await supabase.from('daily_schedules').delete().eq('id', scheduleId)
-
-  revalidatePath('/admin')
-  revalidatePath('/dashboard')
 }

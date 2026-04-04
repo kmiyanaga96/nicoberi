@@ -175,3 +175,103 @@ export async function updateScheduleTransport(formData: FormData) {
   }
   revalidatePath('/dashboard')
 }
+
+// 児童情報の追加・更新
+export async function upsertChild(formData: FormData) {
+  const supabase = await createClient()
+  const id = formData.get('id') as string
+  const first_name = formData.get('first_name') as string
+  const last_name = formData.get('last_name') as string
+  const sei = formData.get('sei') as string
+  const mei = formData.get('mei') as string
+  const gender = formData.get('gender') as string
+  const recipient_number = formData.get('recipient_number') as string
+  const disability_level = parseInt(formData.get('disability_level') as string) || 3
+  const medical_notes = formData.get('medical_notes') as string
+  const notes = formData.get('notes') as string
+
+  if (!first_name || !last_name) return
+
+  const payload = {
+    first_name,
+    last_name,
+    sei,
+    mei,
+    gender,
+    recipient_number,
+    disability_level,
+    medical_notes,
+    notes,
+    active: true
+  }
+
+  if (id) {
+    // 既存の更新
+    await supabase.from('children').update(payload).eq('id', id)
+  } else {
+    // 新規作成
+    await supabase.from('children').insert(payload)
+  }
+  
+  revalidatePath('/dashboard')
+}
+
+// 児童の削除（論理削除ではなく物理削除）
+export async function deleteChild(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const childId = formData.get('childId') as string
+  if (!childId) return
+
+  // 関連するスケジュールも削除
+  await supabase.from('daily_schedules').delete().eq('child_id', childId)
+  await supabase.from('children').delete().eq('id', childId)
+
+  revalidatePath('/dashboard')
+}
+
+// 来所予定の追加
+export async function addSchedule(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const childId = formData.get('childId') as string
+  const date = formData.get('date') as string
+
+  if (!childId || !date) return
+
+  // 同じ日に同じ児童の予定が既にあれば追加しない
+  const { data: existing } = await supabase
+    .from('daily_schedules')
+    .select('id')
+    .eq('child_id', childId)
+    .eq('date', date)
+    .maybeSingle()
+
+  if (existing) return // 重複防止
+
+  await supabase.from('daily_schedules').insert({
+    child_id: childId,
+    date,
+    status: 'scheduled',
+  })
+
+  revalidatePath('/dashboard')
+}
+
+// 来所予定の削除
+export async function removeSchedule(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const scheduleId = formData.get('scheduleId') as string
+  if (!scheduleId) return
+
+  await supabase.from('daily_schedules').delete().eq('id', scheduleId)
+
+  revalidatePath('/dashboard')
+}

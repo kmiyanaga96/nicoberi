@@ -1,9 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { logout, markAsArrived, markAsDeparted, toggleTransport, updateChildNotes, updateScheduleTime, updateScheduleTransport } from './actions'
-import { Clock, CheckCircle2, User, AlertCircle, CalendarDays, Settings, CarTaxiFront, Save, History } from 'lucide-react'
+import { logout, markAsArrived, markAsDeparted, toggleTransport, updateChildNotes, updateScheduleTime, updateScheduleTransport, upsertChild, deleteChild, addSchedule, removeSchedule } from './actions'
+import { Clock, CheckCircle2, User, AlertCircle, CalendarDays, Settings, CarTaxiFront, Save, History, Plus, X, Trash2, Users } from 'lucide-react'
 import { AutoCloseDetails } from '@/app/components/AutoCloseDetails'
+import { ConfirmButton } from '@/app/components/ConfirmButton'
 
 // 時刻フォーマット用のヘルパー関数
 function formatTime(isoString: string | null) {
@@ -24,7 +25,8 @@ export default async function DashboardPage({
   searchParams: Promise<any>
 }) {
   const resolvedParams = await searchParams
-  const activeTab = resolvedParams?.day || 'today' // 'today' | 'tomorrow' | 'history'
+  const activeTab = resolvedParams?.tab || 'schedule' // 'schedule' | 'history' | 'children'
+  const subTab = resolvedParams?.sub || 'today' // 'today' | 'tomorrow' | 'register'
   const supabase = await createClient()
 
   // セッションの確認
@@ -50,13 +52,13 @@ export default async function DashboardPage({
   // 対象の日付文字列（YYYY-MM-DD）を算出
   const today = new Date()
   const targetDate = new Date()
-  if (activeTab === 'tomorrow') targetDate.setDate(targetDate.getDate() + 1)
+  if (activeTab === 'schedule' && subTab === 'tomorrow') targetDate.setDate(targetDate.getDate() + 1)
   const targetDateStr = targetDate.toISOString().split('T')[0]
   const displayDateStr = targetDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 
   // --- 今日/明日のスケジュールデータ ---
   let typedSchedules: any[] = []
-  if (activeTab !== 'history') {
+  if (activeTab === 'schedule' && (subTab === 'today' || subTab === 'tomorrow')) {
     const { data: schedules } = await supabase
       .from('daily_schedules')
       .select(`
@@ -72,7 +74,10 @@ export default async function DashboardPage({
           last_name,
           sei,
           medical_notes,
-          notes
+          notes,
+          gender,
+          recipient_number,
+          disability_level
         )
       `)
       .eq('date', targetDateStr)
@@ -83,6 +88,50 @@ export default async function DashboardPage({
       const seiB = b.children?.sei || b.children?.last_name || ''
       return seiA.localeCompare(seiB, 'ja')
     })
+  }
+
+  // --- 児童リスト（スケジュール登録用＆児童名簿用） ---
+  let typedChildren: any[] = []
+  if (activeTab === 'children' || (activeTab === 'schedule' && subTab === 'register')) {
+    const { data: childrenData } = await supabase
+      .from('children')
+      .select('*')
+      .order('sei', { ascending: true })
+    typedChildren = (childrenData as any[]) || []
+  }
+
+  // --- 予定登録用データ (今後30日間) ---
+  const dateSuggestions: { value: string; label: string }[] = []
+  const schedulesByDate: Record<string, any[]> = {}
+  if (activeTab === 'schedule' && subTab === 'register') {
+    const todayDate = new Date()
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date(todayDate)
+      d.setDate(d.getDate() + i)
+      const val = d.toISOString().split('T')[0]
+      const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+      const label = `${d.getMonth() + 1}/${d.getDate()} (${dow})`
+      dateSuggestions.push({ value: val, label })
+    }
+
+    const scheduleRangeStart = todayDate.toISOString().split('T')[0]
+    const endD = new Date(todayDate); endD.setDate(endD.getDate() + 30)
+    const scheduleRangeEnd = endD.toISOString().split('T')[0]
+
+    const { data: existingSchedules } = await supabase
+      .from('daily_schedules')
+      .select(`
+        id, date, status,
+        children ( id, first_name, last_name, sei )
+      `)
+      .gte('date', scheduleRangeStart)
+      .lte('date', scheduleRangeEnd)
+      .order('date', { ascending: true })
+
+    for (const s of (existingSchedules as any[]) || []) {
+      if (!schedulesByDate[s.date]) schedulesByDate[s.date] = []
+      schedulesByDate[s.date].push(s)
+    }
   }
 
   // --- 月次履歴データ（当月1日〜前日） ---
@@ -143,7 +192,7 @@ export default async function DashboardPage({
             </h1>
             <p className="flex items-center text-muted-foreground text-sm font-medium">
               <CalendarDays className="w-4 h-4 mr-2" />
-              {activeTab === 'history' ? `${monthLabel}の打刻履歴` : displayDateStr}
+              {activeTab === 'history' ? `${monthLabel}の打刻履歴` : activeTab === 'children' ? '児童名簿・情報管理' : displayDateStr}
             </p>
           </div>
 
@@ -166,31 +215,42 @@ export default async function DashboardPage({
           </div>
         </header>
 
-        {/* Tabs (今日 / 明日 / 月次履歴) */}
-        <div className="flex bg-black/5 dark:bg-white/5 p-1.5 rounded-2xl w-fit mb-6 shadow-inner border border-black/5 dark:border-white/5">
+        {/* Tabs (予定 / 月次履歴 / 児童) */}
+        <div className="flex bg-black/5 dark:bg-white/5 p-1.5 rounded-2xl w-fit mb-4 shadow-inner border border-black/5 dark:border-white/5">
           <Link
-            href="/dashboard"
-            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'today' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
+            href="/dashboard?tab=schedule&sub=today"
+            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'schedule' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
-            今日
+            <CalendarDays className="w-3.5 h-3.5" />
+            予定
           </Link>
           <Link
-            href="/dashboard?day=tomorrow"
-            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'tomorrow' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
-          >
-            明日
-          </Link>
-          <Link
-            href="/dashboard?day=history"
+            href="/dashboard?tab=history"
             className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
             <History className="w-3.5 h-3.5" />
             月次履歴
           </Link>
+          <Link
+            href="/dashboard?tab=children"
+            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'children' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            児童
+          </Link>
         </div>
 
-        {/* ===== 今日 / 明日 タブ ===== */}
-        {activeTab !== 'history' && (
+        {/* Sub Tabs for Schedule */}
+        {activeTab === 'schedule' && (
+          <div className="flex gap-2 mb-6 ml-2">
+            <Link href="/dashboard?tab=schedule&sub=today" className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${subTab === 'today' ? 'bg-primary/20 text-primary' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary text-foreground'}`}>今日</Link>
+            <Link href="/dashboard?tab=schedule&sub=tomorrow" className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${subTab === 'tomorrow' ? 'bg-primary/20 text-primary' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary text-foreground'}`}>明日</Link>
+            <Link href="/dashboard?tab=schedule&sub=register" className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${subTab === 'register' ? 'bg-primary/20 text-primary' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary text-foreground'}`}>予定登録・キャンセル</Link>
+          </div>
+        )}
+
+        {/* ===== SCHEDULE (Today / Tomorrow) ===== */}
+        {activeTab === 'schedule' && (subTab === 'today' || subTab === 'tomorrow') && (
           <div className="space-y-4 pb-12">
             {typedSchedules.length === 0 ? (
               <div className="glass p-12 rounded-3xl text-center flex flex-col items-center justify-center text-muted-foreground border-dashed border-2 border-border/50">
@@ -446,6 +506,251 @@ export default async function DashboardPage({
                   )
                 })
             )}
+          </div>
+        )}
+
+        {/* ===== 予定登録・キャンセル ===== */}
+        {activeTab === 'schedule' && subTab === 'register' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl pb-12">
+            {/* 予定追加フォーム */}
+            <div className="glass border border-white/20 dark:border-white/10 rounded-3xl p-6">
+              <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+                <CalendarDays className="w-5 h-5 text-primary" />
+                新規来所予定の追加
+              </h2>
+              <form action={addSchedule} className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs text-muted-foreground mb-1.5 font-bold uppercase">児童</label>
+                  <select name="childId" required className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow">
+                    <option value="">選択</option>
+                    {typedChildren.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.last_name} {c.first_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs text-muted-foreground mb-1.5 font-bold uppercase">日付</label>
+                  <select name="date" required className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow">
+                    {dateSuggestions.map(ds => (
+                      <option key={ds.value} value={ds.value}>{ds.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <button type="submit" className="flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm h-[42px] px-6 rounded-xl transition-all shadow-md active:scale-95">
+                  <Plus className="w-4 h-4" />
+                  予定を追加
+                </button>
+              </form>
+            </div>
+
+            {/* 予定一覧アコーディオン */}
+            <div className="space-y-3">
+              <h2 className="text-lg font-bold flex items-center gap-2 mb-2 ml-2">
+                <CalendarDays className="w-5 h-5 text-muted-foreground" />
+                確定済みの予定一覧 <span className="text-[11px] font-normal text-muted-foreground ml-2">(今後30日間)</span>
+              </h2>
+              {dateSuggestions.map(ds => {
+                const dayRecords = schedulesByDate[ds.value] || []
+                if (dayRecords.length === 0) return null
+                const d = new Date(ds.value + 'T00:00:00')
+                const isSun = d.getDay() === 0
+                const isSat = d.getDay() === 6
+                return (
+                  <details key={ds.value} className="group glass rounded-2xl border border-white/10 dark:border-white/5 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                    <summary className={`flex items-center justify-between cursor-pointer px-5 py-3.5 text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-foreground'}`}>
+                      <span>{ds.label}</span>
+                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">{dayRecords.length}名</span>
+                    </summary>
+                    <div className="border-t border-border/20 divide-y divide-border/20">
+                      {dayRecords.sort((a: any, b: any) => {
+                        const sA = a.children?.sei || a.children?.last_name || ''
+                        const sB = b.children?.sei || b.children?.last_name || ''
+                        return sA.localeCompare(sB, 'ja')
+                      }).map((s: any) => (
+                        <div key={s.id} className="flex items-center justify-between px-5 py-3 bg-black/5 dark:bg-black/20">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                              {s.children?.last_name?.[0]}{s.children?.first_name?.[0]}
+                            </div>
+                            <span className="text-sm font-bold">{s.children?.last_name} {s.children?.first_name}</span>
+                          </div>
+                          <form action={removeSchedule}>
+                            <input type="hidden" name="scheduleId" value={s.id} />
+                            <button type="submit" className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-600 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors" title="予定を削除">
+                              <X className="w-3.5 h-3.5" />
+                              キャンセル
+                            </button>
+                          </form>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== CHILDREN ===== */}
+        {activeTab === 'children' && (
+          <div className="space-y-6 pb-12 w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="glass border border-white/20 dark:border-white/10 rounded-3xl p-6">
+              {/* 新規登録フォーム */}
+              <details className="mb-6 group bg-primary/10 border border-primary/20 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex items-center justify-between cursor-pointer p-4 font-bold text-primary">
+                  <div className="flex items-center gap-2">
+                    <Plus className="w-5 h-5" />
+                    新規児童の登録
+                  </div>
+                </summary>
+                <div className="p-5 pt-0 border-t border-primary/10 bg-background/50">
+                  <form action={upsertChild} className="flex flex-col gap-4 mt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">姓</label>
+                        <input type="text" name="last_name" required className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">名</label>
+                        <input type="text" name="first_name" required className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">セイ</label>
+                        <input type="text" name="sei" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">メイ</label>
+                        <input type="text" name="mei" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">性別</label>
+                        <select name="gender" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none">
+                          <option value="男">男</option>
+                          <option value="女">女</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">受給者証番号</label>
+                        <input type="text" name="recipient_number" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">支援区分</label>
+                        <input type="number" name="disability_level" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground uppercase mb-1">スタッフ共有事項</label>
+                      <textarea name="notes" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" rows={2}></textarea>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground uppercase mb-1">非公開配慮事項 (管理者等のみ)</label>
+                      <textarea name="medical_notes" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" rows={2}></textarea>
+                    </div>
+                    <button type="submit" className="self-start bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2.5 px-8 rounded-xl transition-all shadow-md active:scale-95">
+                      登録を完了する
+                    </button>
+                  </form>
+                </div>
+              </details>
+
+              {/* 既存児童一覧 */}
+              <div className="space-y-3">
+                <h2 className="text-lg font-bold flex items-center gap-2 mb-4 ml-2">
+                  <Users className="w-5 h-5 text-muted-foreground" />
+                  登録済み児童名簿
+                </h2>
+                {typedChildren.map((child) => (
+                  <AutoCloseDetails
+                    key={child.id}
+                    className="group bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/5 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden"
+                    summaryClassName="flex items-center justify-between cursor-pointer p-4 font-bold text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    summaryContent={<>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                          {child.last_name[0]}{child.first_name[0]}
+                        </div>
+                        <div>
+                          <span>{child.last_name} {child.first_name}</span>
+                          <span className="block text-[10px] text-muted-foreground font-normal mt-0.5">{child.sei} {child.mei}</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground bg-black/10 dark:bg-white/10 px-2.5 py-1 rounded-lg uppercase tracking-widest font-bold flex items-center gap-1.5">
+                        <Settings className="w-3 h-3" />
+                        詳細・編集
+                      </span>
+                    </>}
+                  >
+                    <div className="p-5 pt-4 border-t border-border/50 bg-background/50">
+                      <form action={upsertChild} className="flex flex-col gap-4">
+                        <input type="hidden" name="id" value={child.id} />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">姓</label>
+                            <input type="text" name="last_name" defaultValue={child.last_name} required className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">名</label>
+                            <input type="text" name="first_name" defaultValue={child.first_name} required className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">セイ</label>
+                            <input type="text" name="sei" defaultValue={child.sei || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">メイ</label>
+                            <input type="text" name="mei" defaultValue={child.mei || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">性別</label>
+                            <select name="gender" defaultValue={child.gender || '男'} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none">
+                              <option value="男">男</option>
+                              <option value="女">女</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">受給者証番号</label>
+                            <input type="text" name="recipient_number" defaultValue={child.recipient_number || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">支援区分</label>
+                            <input type="number" name="disability_level" defaultValue={child.disability_level || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground uppercase mb-1">スタッフ共有事項</label>
+                          <textarea name="notes" defaultValue={child.notes || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" rows={2}></textarea>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground uppercase mb-1">非公開配慮事項</label>
+                          <textarea name="medical_notes" defaultValue={child.medical_notes || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none" rows={2}></textarea>
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                          <button type="submit" className="flex items-center gap-1.5 bg-primary/20 hover:bg-primary/30 text-primary font-bold py-2 px-6 rounded-xl transition-all">
+                            <Save className="w-4 h-4" />
+                            変更を保存
+                          </button>
+                        </div>
+                      </form>
+                      
+                      <form action={deleteChild} className="mt-4 pt-4 border-t border-border/50 flex justify-end">
+                        <input type="hidden" name="childId" value={child.id} />
+                        <ConfirmButton
+                          message={`${child.last_name} ${child.first_name} を名簿から完全に削除しますか？\nこの操作は取り消せません。`}
+                          className="flex items-center gap-1.5 text-red-500 hover:text-red-600 text-xs font-bold hover:bg-red-500/10 px-3 py-2 rounded-xl transition-colors border border-red-500/30 bg-transparent"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          この児童を削除
+                        </ConfirmButton>
+                      </form>
+                    </div>
+                  </AutoCloseDetails>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
