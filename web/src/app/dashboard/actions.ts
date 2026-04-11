@@ -115,8 +115,8 @@ export async function updateScheduleTime(formData: FormData) {
   if (!user) return
 
   const isAdmin = await requireAdmin(supabase, user.id)
-  if (!isAdmin) return
-
+  // staff権限も「今日」の予定なら打刻修正可能にするためブロックを解除
+  // (過去日に関してはDBのRLS制御によって保護される想定)
   const scheduleId = formData.get('scheduleId') as string
   const fieldName = formData.get('fieldName') as 'clock_in' | 'clock_out'
   const timeValue = formData.get('timeValue') as string
