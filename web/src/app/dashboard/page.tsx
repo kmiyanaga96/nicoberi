@@ -205,19 +205,19 @@ export default async function DashboardPage({
             </p>
           </div>
 
-          <div className="flex items-center gap-4 bg-white/50 dark:bg-black/50 px-4 py-2 rounded-2xl border border-white/20 shadow-sm backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4 bg-white/50 dark:bg-black/50 px-3 md:px-4 py-2 rounded-2xl border border-white/20 shadow-sm backdrop-blur-sm mt-2 md:mt-0 w-full md:w-auto overflow-x-auto no-scrollbar">
             {isAdmin && (
-              <Link href="/admin" className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-bold transition-colors mr-2">
-                <Settings className="w-4 h-4" />
+              <Link href="/admin" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm text-primary hover:text-primary/80 font-bold transition-colors whitespace-nowrap">
+                <Settings className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 管理者パネル
               </Link>
             )}
-            <button className="flex items-center gap-2 text-sm text-muted-foreground mr-2 hover:bg-black/5 dark:hover:bg-white/5 py-1 px-2 rounded-lg transition-colors cursor-pointer group" title="勤務予定・給与情報 (準備中)">
-              <User className="w-4 h-4 group-hover:text-primary transition-colors" />
-              <span className="truncate max-w-[120px] font-bold group-hover:text-foreground transition-colors">{staffProfile?.name}</span>
+            <button className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 py-1 px-2 rounded-lg transition-colors cursor-pointer group whitespace-nowrap" title="勤務予定・給与情報 (準備中)">
+              <User className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:text-primary transition-colors" />
+              <span className="truncate max-w-[100px] md:max-w-[120px] font-bold group-hover:text-foreground transition-colors">{staffProfile?.name}</span>
             </button>
-            <form action={logout}>
-              <button type="submit" className="text-sm px-4 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium transition-colors">
+            <form action={logout} className="ml-auto md:ml-0">
+              <button type="submit" className="text-xs md:text-sm px-3 md:px-4 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium transition-colors whitespace-nowrap">
                 ログアウト
               </button>
             </form>
@@ -225,24 +225,24 @@ export default async function DashboardPage({
         </header>
 
         {/* Tabs (予定 / 月次履歴 / 児童) */}
-        <div className="flex bg-black/5 dark:bg-white/5 p-1.5 rounded-2xl w-fit mb-4 shadow-inner border border-black/5 dark:border-white/5">
+        <div className="flex overflow-x-auto no-scrollbar bg-black/5 dark:bg-white/5 p-1.5 rounded-2xl w-full max-w-full md:w-fit mb-4 shadow-inner border border-black/5 dark:border-white/5">
           <Link
             href="/dashboard?tab=schedule&sub=today"
-            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'schedule' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
+            className={`px-4 md:px-6 py-2 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex flex-shrink-0 items-center gap-1.5 ${activeTab === 'schedule' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
             <CalendarDays className="w-3.5 h-3.5" />
             予定
           </Link>
           <Link
             href="/dashboard?tab=history"
-            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
+            className={`px-4 md:px-6 py-2 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex flex-shrink-0 items-center gap-1.5 ${activeTab === 'history' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
             <History className="w-3.5 h-3.5" />
             月次履歴
           </Link>
           <Link
             href="/dashboard?tab=children"
-            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-1.5 ${activeTab === 'children' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
+            className={`px-4 md:px-6 py-2 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex flex-shrink-0 items-center gap-1.5 ${activeTab === 'children' ? 'bg-primary text-primary-foreground shadow-sm scale-105' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}`}
           >
             <Users className="w-3.5 h-3.5" />
             児童・住所
@@ -469,17 +469,11 @@ export default async function DashboardPage({
                                 </div>
                                 <div>
                                   <span className="font-bold text-sm">{child.last_name} {child.first_name}</span>
-<<<<<<< HEAD
                                   {schedule.status === 'cancelled' && (
                                     <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold bg-red-500/20 text-red-400">
                                       キャンセル
                                     </span>
                                   )}
-=======
-                                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold ${schedule.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-teal-500/15 text-teal-500 dark:text-teal-400'}`}>
-                                    {schedule.status === 'cancelled' ? 'キャンセル' : '預かり'}
-                                  </span>
->>>>>>> dbdcbf10a689929335894c7e66d15e548da76991
                                 </div>
                               </div>
 

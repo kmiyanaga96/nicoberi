@@ -71,3 +71,13 @@
     @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-sm dark:bg-black/50 dark:border-white/10;
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
