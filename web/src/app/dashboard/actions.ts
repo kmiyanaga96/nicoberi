@@ -195,6 +195,8 @@ export async function upsertChild(formData: FormData) {
   const home_address = formData.get('home_address') as string || null
   const facility_idStr = formData.get('facility_id') as string
   const facility_id = facility_idStr ? facility_idStr : null
+  const birthdateStr = formData.get('birthdate') as string
+  const birthdate = birthdateStr ? birthdateStr : null
 
   const payload = {
     first_name,
@@ -208,6 +210,7 @@ export async function upsertChild(formData: FormData) {
     notes,
     home_address,
     facility_id,
+    birthdate,
     active: true
   }
 

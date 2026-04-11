@@ -618,8 +618,12 @@ export default async function DashboardPage({
                   {/* 新規施設登録 */}
                   <form action={upsertFacility} className="flex flex-col gap-4">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">生年月日</label>
+                        <input type="date" name="birthdate" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
                       <div className="md:col-span-2">
-                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">施設・学校名</label>
                         <input type="text" name="name" required placeholder="例: 第一小学校" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
                       </div>
                       <div className="md:col-span-3">
@@ -726,6 +730,11 @@ export default async function DashboardPage({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase mb-1">生年月日</label>
+                        <input type="date" name="birthdate" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground" />
+                      </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground uppercase mb-1">性別</label>
                         <select name="gender" className="w-full bg-background border border-border/50 text-sm px-4 py-2.5 rounded-xl focus:ring-2 focus:ring-primary outline-none">
@@ -806,6 +815,11 @@ export default async function DashboardPage({
                           </div>
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground uppercase mb-1">生年月日</label>
+                            <input type="date" name="birthdate" defaultValue={child.birthdate || ''} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground" />
+                          </div>
                           <div>
                             <label className="block text-[10px] text-muted-foreground uppercase mb-1">性別</label>
                             <select name="gender" defaultValue={child.gender || '男'} className="w-full bg-background border border-border/50 text-sm px-4 py-2 rounded-xl focus:ring-2 focus:ring-primary outline-none">

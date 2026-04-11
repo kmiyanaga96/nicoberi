@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 export async function createNewStaffAccount(formData: FormData) {
   const supabase = await createClient()
@@ -46,6 +47,7 @@ export async function createNewStaffAccount(formData: FormData) {
   }
 
   revalidatePath('/admin')
+  redirect('/admin')
 }
 
 export async function updateStaffAccount(formData: FormData) {
@@ -91,6 +93,7 @@ export async function updateStaffAccount(formData: FormData) {
   }
 
   revalidatePath('/admin')
+  redirect('/admin')
 }
 
 export async function deleteStaffAccount(formData: FormData) {
@@ -120,6 +123,7 @@ export async function deleteStaffAccount(formData: FormData) {
   }
 
   revalidatePath('/admin')
+  redirect('/admin')
 }
 
 export async function toggleStaffActive(staffId: string, currentStatus: boolean) {
