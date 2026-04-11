@@ -16,7 +16,6 @@ export async function markAsArrived(scheduleId: string) {
 
   if (!user) return
 
-  // 到着時間の打刻（日時更新）とステータスを'present'にする
   const { error } = await supabase
     .from('daily_schedules')
     .update({ 
@@ -40,7 +39,6 @@ export async function markAsDeparted(scheduleId: string) {
 
   if (!user) return
 
-  // 退出時間の打刻（日時更新）
   const { error } = await supabase
     .from('daily_schedules')
     .update({ 
@@ -134,6 +132,7 @@ export async function updateScheduleTime(formData: FormData) {
 
   let isoDateTime = null
   if (timeValue) {
+    // 確実な日本時間として解釈してISOに落とし込む (+09:00付与)
     isoDateTime = new Date(`${schedule.date}T${timeValue}:00+09:00`).toISOString()
   }
 
@@ -216,10 +215,8 @@ export async function upsertChild(formData: FormData) {
   }
 
   if (id) {
-    // 既存の更新
     await supabase.from('children').update(payload).eq('id', id)
   } else {
-    // 新規作成
     await supabase.from('children').insert(payload)
   }
   

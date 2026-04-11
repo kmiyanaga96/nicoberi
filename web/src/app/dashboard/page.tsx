@@ -50,29 +50,24 @@ export default async function DashboardPage({
   const targetDateStr = targetDate.toISOString().split('T')[0]
   const displayDateStr = targetDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 
-  // --- 今日/明日のスケジュールデータ ---
+  // ====== データフェッチ（Promise.all による並列化で高速化） ======
   let typedSchedules: any[] = []
+  let typedChildren: any[] = []
+  let typedFacilities: any[] = []
+  const dateSuggestions: { value: string; label: string }[] = []
+  const schedulesByDate: Record<string, any[]> = {}
+  let historyByDate: Record<string, any[]> = {}
+
   if (activeTab === 'schedule' && (subTab === 'today' || subTab === 'tomorrow')) {
+    // 今日/明日タブ: クエリは1本だけなのでそのまま
     const { data: schedules } = await supabase
       .from('daily_schedules')
       .select(`
-        id,
-        status,
-        clock_in,
-        clock_out,
-        pickup,
-        dropoff,
+        id, status, clock_in, clock_out, pickup, dropoff,
         children (
-          id,
-          first_name,
-          last_name,
-          sei,
-          medical_notes,
-          notes,
-          gender,
-          recipient_number,
-          disability_level,
-          home_address,
+          id, first_name, last_name, sei,
+          medical_notes, notes, gender, recipient_number,
+          disability_level, home_address,
           facilities ( name, address )
         )
       `)
@@ -84,29 +79,9 @@ export default async function DashboardPage({
       const seiB = b.children?.sei || b.children?.last_name || ''
       return seiA.localeCompare(seiB, 'ja')
     })
-  }
 
-  // --- 児童リスト（スケジュール登録用＆児童名簿用） ---
-  let typedChildren: any[] = []
-  let typedFacilities: any[] = []
-  if (activeTab === 'children' || (activeTab === 'schedule' && subTab === 'register')) {
-    const { data: facilitiesData } = await supabase
-      .from('facilities')
-      .select('*')
-      .order('name', { ascending: true })
-    typedFacilities = (facilitiesData as any[]) || []
-
-    const { data: childrenData } = await supabase
-      .from('children')
-      .select('*, facilities(*)')
-      .order('sei', { ascending: true })
-    typedChildren = (childrenData as any[]) || []
-  }
-
-  // --- 予定登録用データ (今後30日間) ---
-  const dateSuggestions: { value: string; label: string }[] = []
-  const schedulesByDate: Record<string, any[]> = {}
-  if (activeTab === 'schedule' && subTab === 'register') {
+  } else if (activeTab === 'schedule' && subTab === 'register') {
+    // 予定登録タブ: 児童・施設・既存スケジュールを並列取得
     const todayDate = new Date()
     for (let i = 0; i <= 30; i++) {
       const d = new Date(todayDate)
@@ -116,30 +91,39 @@ export default async function DashboardPage({
       const label = `${d.getMonth() + 1}/${d.getDate()} (${dow})`
       dateSuggestions.push({ value: val, label })
     }
-
     const scheduleRangeStart = todayDate.toISOString().split('T')[0]
     const endD = new Date(todayDate); endD.setDate(endD.getDate() + 30)
     const scheduleRangeEnd = endD.toISOString().split('T')[0]
 
-    const { data: existingSchedules } = await supabase
-      .from('daily_schedules')
-      .select(`
-        id, date, status,
-        children ( id, first_name, last_name, sei )
-      `)
-      .gte('date', scheduleRangeStart)
-      .lte('date', scheduleRangeEnd)
-      .order('date', { ascending: true })
-
-    for (const s of (existingSchedules as any[]) || []) {
+    // ★ 3クエリを並列実行
+    const [facilitiesRes, childrenRes, existingSchedulesRes] = await Promise.all([
+      supabase.from('facilities').select('*').order('name', { ascending: true }),
+      supabase.from('children').select('*, facilities(*)').order('sei', { ascending: true }),
+      supabase.from('daily_schedules')
+        .select('id, date, status, children ( id, first_name, last_name, sei )')
+        .gte('date', scheduleRangeStart)
+        .lte('date', scheduleRangeEnd)
+        .order('date', { ascending: true }),
+    ])
+    typedFacilities = (facilitiesRes.data as any[]) || []
+    typedChildren = (childrenRes.data as any[]) || []
+    for (const s of (existingSchedulesRes.data as any[]) || []) {
       if (!schedulesByDate[s.date]) schedulesByDate[s.date] = []
       schedulesByDate[s.date].push(s)
     }
-  }
 
-  // --- 月次履歴データ（当月1日〜前日） ---
-  let historyByDate: Record<string, any[]> = {}
-  if (activeTab === 'history') {
+  } else if (activeTab === 'children') {
+    // 児童名簿タブ: 児童と施設を並列取得
+    // ★ 2クエリを並列実行
+    const [facilitiesRes, childrenRes] = await Promise.all([
+      supabase.from('facilities').select('*').order('name', { ascending: true }),
+      supabase.from('children').select('*, facilities(*)').order('sei', { ascending: true }),
+    ])
+    typedFacilities = (facilitiesRes.data as any[]) || []
+    typedChildren = (childrenRes.data as any[]) || []
+
+  } else if (activeTab === 'history') {
+    // 月次履歴タブ
     const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
@@ -149,25 +133,17 @@ export default async function DashboardPage({
       const { data: historyData } = await supabase
         .from('daily_schedules')
         .select(`
-          id,
-          date,
-          status,
-          clock_in,
-          clock_out,
-          pickup,
-          dropoff,
+          id, date, status, clock_in, clock_out, pickup, dropoff,
           children ( id, first_name, last_name, sei )
         `)
         .gte('date', monthStart)
         .lte('date', yesterdayStr)
         .order('date', { ascending: false })
 
-      // 日付ごとにグルーピング + フリガナソート
       for (const s of (historyData as any[]) || []) {
         if (!historyByDate[s.date]) historyByDate[s.date] = []
         historyByDate[s.date].push(s)
       }
-      // 各日付内をフリガナソート
       for (const date of Object.keys(historyByDate)) {
         historyByDate[date].sort((a: any, b: any) => {
           const seiA = a.children?.sei || a.children?.last_name || ''
