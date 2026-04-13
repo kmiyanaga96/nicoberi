@@ -105,13 +105,29 @@ export default async function DashboardPage({
 
   } else if (activeTab === 'history') {
     const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
-    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = yesterday.toISOString().split('T')[0]
-    if (yesterdayStr >= monthStart) {
+    const todayStr = today.toISOString().split('T')[0]
+
+    // 児童リストを取得（追加フォーム用）
+    const { data: childrenRes } = await supabase
+      .from('children')
+      .select('*, facilities(*)')
+      .order('sei', { ascending: true })
+    typedChildren = (childrenRes as any[]) || []
+
+    // 当月初日から当日までの空配列を初期化
+    const loopDate = new Date(`${monthStart}T00:00:00`)
+    const endDate = new Date(`${todayStr}T00:00:00`)
+    while (loopDate <= endDate) {
+      const dStr = loopDate.toISOString().split('T')[0]
+      historyByDate[dStr] = []
+      loopDate.setDate(loopDate.getDate() + 1)
+    }
+
+    if (todayStr >= monthStart) {
       const { data: historyData } = await supabase
         .from('daily_schedules')
         .select('id, date, status, clock_in, clock_out, pickup, dropoff, children ( id, first_name, last_name, sei )')
-        .gte('date', monthStart).lte('date', yesterdayStr)
+        .gte('date', monthStart).lte('date', todayStr)
         .order('date', { ascending: false })
       for (const s of (historyData as any[]) || []) {
         if (!historyByDate[s.date]) historyByDate[s.date] = []
@@ -181,7 +197,7 @@ export default async function DashboardPage({
           <ScheduleView schedules={typedSchedules} isAdmin={isAdmin} />
         )}
         {activeTab === 'history' && (
-          <HistoryView historyByDate={historyByDate} isAdmin={isAdmin} />
+          <HistoryView historyByDate={historyByDate} typedChildren={typedChildren} />
         )}
         {activeTab === 'schedule' && subTab === 'register' && (
           <RegisterView typedChildren={typedChildren} dateSuggestions={dateSuggestions} schedulesByDate={schedulesByDate} />

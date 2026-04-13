@@ -1,8 +1,8 @@
-import { CalendarDays, History, CarTaxiFront } from 'lucide-react'
-import { updateScheduleTime, updateScheduleTransport, removeSchedule } from '../actions'
+import { CalendarDays, History, CarTaxiFront, Plus } from 'lucide-react'
+import { updateScheduleTime, updateScheduleTransport, addSchedule } from '../actions'
 import { formatTime } from '@/utils/format'
 
-export function HistoryView({ historyByDate, isAdmin }: { historyByDate: Record<string, any[]>; isAdmin: boolean }) {
+export function HistoryView({ historyByDate, typedChildren }: { historyByDate: Record<string, any[]>; typedChildren: any[] }) {
   return (
     <div className="space-y-6 pb-12">
       {Object.keys(historyByDate).length === 0 ? (
@@ -46,71 +46,58 @@ export function HistoryView({ historyByDate, isAdmin }: { historyByDate: Record<
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                          {isAdmin ? (
-                            <>
-                              <form action={updateScheduleTime} className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
-                                <input type="hidden" name="scheduleId" value={schedule.id} />
-                                <input type="hidden" name="fieldName" value="clock_in" />
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">到着</span>
-                                <input type="time" name="timeValue" defaultValue={formatTime(schedule.clock_in, '')} className="bg-transparent border border-border/50 text-foreground rounded-lg px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary w-[80px]" />
-                                <button type="submit" className="text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 px-1.5 py-0.5 rounded transition-colors">更新</button>
-                              </form>
-                              <form action={updateScheduleTime} className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
-                                <input type="hidden" name="scheduleId" value={schedule.id} />
-                                <input type="hidden" name="fieldName" value="clock_out" />
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">退出</span>
-                                <input type="time" name="timeValue" defaultValue={formatTime(schedule.clock_out, '')} className="bg-transparent border border-border/50 text-foreground rounded-lg px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary w-[80px]" />
-                                <button type="submit" className="text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 px-1.5 py-0.5 rounded transition-colors">更新</button>
-                              </form>
-                              <div className="flex gap-1">
-                                <form action={updateScheduleTransport}>
-                                  <input type="hidden" name="scheduleId" value={schedule.id} />
-                                  <input type="hidden" name="field" value="pickup" />
-                                  <input type="hidden" name="currentValue" value={schedule.pickup ? 'true' : 'false'} />
-                                  <button type="submit" className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${schedule.pickup ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
-                                    <CarTaxiFront className={`w-3 h-3 ${schedule.pickup ? 'text-cyan-500' : 'opacity-50'}`} /> 迎え
-                                  </button>
-                                </form>
-                                <form action={updateScheduleTransport}>
-                                  <input type="hidden" name="scheduleId" value={schedule.id} />
-                                  <input type="hidden" name="field" value="dropoff" />
-                                  <input type="hidden" name="currentValue" value={schedule.dropoff ? 'true' : 'false'} />
-                                  <button type="submit" className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${schedule.dropoff ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
-                                    <CarTaxiFront className={`w-3 h-3 ${schedule.dropoff ? 'text-indigo-500' : 'opacity-50'}`} /> 送り
-                                  </button>
-                                </form>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">到着</span>
-                                <span className="font-mono text-xs font-bold">{formatTime(schedule.clock_in)}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">退出</span>
-                                <span className="font-mono text-xs font-bold">{formatTime(schedule.clock_out)}</span>
-                              </div>
-                              {(schedule.pickup || schedule.dropoff) && (
-                                <div className="flex gap-1">
-                                  {schedule.pickup && (
-                                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-                                      <CarTaxiFront className="w-3 h-3 text-cyan-500" /> 迎え
-                                    </span>
-                                  )}
-                                  {schedule.dropoff && (
-                                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
-                                      <CarTaxiFront className="w-3 h-3 text-indigo-500" /> 送り
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
+                          <form action={updateScheduleTime} className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
+                            <input type="hidden" name="scheduleId" value={schedule.id} />
+                            <input type="hidden" name="fieldName" value="clock_in" />
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase">到着</span>
+                            <input type="time" name="timeValue" defaultValue={formatTime(schedule.clock_in, '')} className="bg-transparent border border-border/50 text-foreground rounded-lg px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary w-[80px]" />
+                            <button type="submit" className="text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 px-1.5 py-0.5 rounded transition-colors">更新</button>
+                          </form>
+                          <form action={updateScheduleTime} className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-xl">
+                            <input type="hidden" name="scheduleId" value={schedule.id} />
+                            <input type="hidden" name="fieldName" value="clock_out" />
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase">退出</span>
+                            <input type="time" name="timeValue" defaultValue={formatTime(schedule.clock_out, '')} className="bg-transparent border border-border/50 text-foreground rounded-lg px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary w-[80px]" />
+                            <button type="submit" className="text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 px-1.5 py-0.5 rounded transition-colors">更新</button>
+                          </form>
+                          <div className="flex gap-1">
+                            <form action={updateScheduleTransport}>
+                              <input type="hidden" name="scheduleId" value={schedule.id} />
+                              <input type="hidden" name="field" value="pickup" />
+                              <input type="hidden" name="currentValue" value={schedule.pickup ? 'true' : 'false'} />
+                              <button type="submit" className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${schedule.pickup ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
+                                <CarTaxiFront className={`w-3 h-3 ${schedule.pickup ? 'text-cyan-500' : 'opacity-50'}`} /> 迎え
+                              </button>
+                            </form>
+                            <form action={updateScheduleTransport}>
+                              <input type="hidden" name="scheduleId" value={schedule.id} />
+                              <input type="hidden" name="field" value="dropoff" />
+                              <input type="hidden" name="currentValue" value={schedule.dropoff ? 'true' : 'false'} />
+                              <button type="submit" className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${schedule.dropoff ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
+                                <CarTaxiFront className={`w-3 h-3 ${schedule.dropoff ? 'text-indigo-500' : 'opacity-50'}`} /> 送り
+                              </button>
+                            </form>
+                          </div>
                         </div>
                       </div>
                     )
                   })}
+                  {/* 新規追加フォーム */}
+                  <div className="px-5 py-3 bg-black/5 dark:bg-black/20 flex flex-col sm:flex-row items-center gap-3">
+                    <span className="text-xs font-bold text-muted-foreground mr-2 whitespace-nowrap">予定を追加:</span>
+                    <form action={addSchedule} className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                      <input type="hidden" name="date" value={dateStr} />
+                      <select name="childId" required className="bg-background border border-border/50 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary outline-none">
+                        <option value="">児童を選択...</option>
+                        {typedChildren.map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.last_name} {c.first_name}</option>
+                        ))}
+                      </select>
+                      <button type="submit" className="flex items-center gap-1 bg-primary/20 text-primary hover:bg-primary/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm whitespace-nowrap">
+                        <Plus className="w-3.5 h-3.5" /> 追加
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </details>
             )
